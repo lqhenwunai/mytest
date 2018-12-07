@@ -36,6 +36,7 @@ int Density_calc(TRMatrix &D, TRMatrix &C, int occ)
 }
 
 //----------------------
+//Diagnoliize fock matrix
 //on input:  S12, S^(-1/2)
 //           Fold, old Fock matrix 
 //on output: Fock
@@ -212,13 +213,10 @@ int main()
   ST.NewMat(row,col);
   C0.NewMat(row,col);
   Fock_calc(F0,inv_sqrt_overlap,Hcore,C0);
-//  ST.Transpose(inv_sqrt_overlap);
-//  Mat_x_Mat_x_Mat(F0,ST,Hcore,inv_sqrt_overlap);//actually ST==inv_sqrt_overlap
 
   msg.Header("Initial Fock Matirx in the orthonormal AO basis");
   print_matrix(F0);
 
-//  print_matrix(Cprime);
   msg.Header("diagnolized F0 Matrix");
   print_matrix(F0);
   cout<<"Initial MO coefficient"<<endl;
@@ -238,25 +236,22 @@ int main()
 //------------------
 //initial SCF energy
 //------------------
-//  TRMatrix Hcore_F;//Hcore+F
-//  Hcore_F.NewMat(row,col);
-//  Math_Mat_plus_Mat(Hcore_F,Hcore,F0old,1.0);
   double Eele=0.0;
   for(int mu=0; mu<row; mu++){
     for(int nu=0; nu<col; nu++){
        Eele+=D[mu][nu]*(Hcore[mu][nu]*2.0);
     }
   }
-
     
   double Etotal=0.0;
   double ENN=8.002367061810450; 
   Etotal=Eele+ENN;
-//  Etotal=-117.839710375888-ENN;
   msg.Header("SCF iterations");
   cout<<"Iter          "<<"E(elec)          "<<"Etot"<<endl;
   cout<<"00  "<<Eele<<"     "<<Etotal<<endl;
-
+//  print_matrix(F0);
+//  cout<<Eele2<<endl;
+  double Eold=Eele;  
 //--------------------------
 //two electron integrals
 //--------------------------
@@ -304,32 +299,27 @@ int main()
 //new density matrix
 //Fock'=ST^(-1/2)Fock*S^(-1/2)
 //--------------------
-//int Fock_calc(TRMatrix &Fock, TRMatrix &S12, TRMatrix& Fold, TRMatrix &C0)
 
-  TRMatrix Fnew,Cnew;
+  TRMatrix Fnew,Cnew,Dnew,Fnew_unDiag;
   Fnew.NewMat(row,col);
   Cnew.NewMat(row,col);
-//  Mat_x_Mat_x_Mat(Fnew,ST,Fock,inv_sqrt_overlap);//actually ST==inv_sqrt_overlap
-//  Cprime.Unity();
-// res=Fnew.Diagnolization(Cprime,threshold_diag);
-
+  Dnew.NewMat(row,col);
+  Fnew_unDiag.NewMat(row,col);//not diagonalized fock matrix.
+  Fnew_unDiag.CopyMat(Fock);
   Fock_calc(Fnew,inv_sqrt_overlap,Fock,Cnew);
-  cout<<"C0 and C'"<<endl;
+//  cout<<"cnew"<<endl;
+//  print_matrix(Cnew);
+//  print_matrix(inv_sqrt_overlap);
+  Density_calc(Dnew,Cnew,occ);
 
-//  print_matrix(C0); 
-//  print_matrix(Cprime); 
-//  Math_Mat_x_Mat(Cnew,inv_sqrt_overlap,Cprime);//C=S^(-1/2)*C'
-
-  Density_calc(D,Cnew,occ);
-
-  print_matrix(D); 
+//  print_matrix(Fnew); 
 //---------------------
 //new scf energy
 //---------------------
-  Eele=0.0;
+ Eele=0.0;
   for(int mu=0; mu<row; mu++){
     for(int nu=0; nu<col; nu++){
-       Eele+=D[mu][nu]*(Hcore[mu][nu]+Fock[mu][nu]);
+       Eele+=Dnew[mu][nu]*(Hcore[mu][nu]+Fnew_unDiag[mu][nu]);
     }
   }
 
@@ -338,6 +328,71 @@ int main()
   cout<<"Iter          "<<"E(elec)          "<<"Etot"<<endl;
   cout<<"01  "<<Eele<<"     "<<Etotal<<endl;
 
+
+  double Enew=Eele;
+  double deltaE=1e-8;
+  double RMSD=1e-8;
+  double tmpE, tmpD=0.0;
+  int iter=0;
+/*
+  while (iter<125)
+{
+  iter++;
+  tmpE=Eele-Eold;
+  for(int mu=0; mu<occ; mu++){
+    for(int nu=0; nu<occ; nu++){
+       tmpD+=(Dnew[mu][nu]-D[mu][nu])*(Dnew[mu][nu]-D[mu][nu]);
+    }
+  }
+  tmpD=sqrt(tmpD);
+
+  if(tmpE<deltaE and tmpD<RMSD)
+    { 
+      msg.Header("SCF converged");
+      break;
+    }
+//construct new Fock matrix
+  for(int mu=0; mu<row; mu++){
+   for(int nu=0; nu<col; nu++){
+     Fock[mu][nu]=Hcore[mu][nu];
+     for(int lemda=0; lemda<row; lemda++){
+       for(int sigma=0; sigma<col; sigma++){
+          Fock[mu][nu]+=Dnew[lemda][sigma]*(2.0*I(mu,nu,lemda,sigma)-I(mu,lemda,nu,sigma));
+       }//sigma
+      }//lemda
+    }//nu
+   }//mu
+
+
+//--------------------
+//diagnolize Fock
+//new density matrix
+//--------------------
+
+  Cnew.Unity();
+  Dnew.Init();
+
+  Fock_calc(Fnew,inv_sqrt_overlap,Fock,Cnew);
+  Density_calc(Dnew,Cnew,occ);
+
+//---------------------
+//new scf energy
+//---------------------
+ Eele=0.0;
+  for(int mu=0; mu<row; mu++){
+    for(int nu=0; nu<col; nu++){
+       Eele+=Dnew[mu][nu]*(Hcore[mu][nu]+Fock[mu][nu]);
+    }
+  }
+
+  Etotal=Eele+ENN;
+
+
+}
+  
+
+*/
+ 
   return 0;
 }
 
